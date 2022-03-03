@@ -1,0 +1,189 @@
+
+## 과제1 대응분석
+```{r}
+library(tidyverse)
+mat <- matrix(c(68,119,26,7,20,84,17,94,15,54,14,10,5,29,14,16),byrow=TRUE, nc=4)
+dimnames(mat) <- list(eye=c('BROWN','BLUE','HAZEL','GREEN'),hair=c('BLACK','BROWN','RED','BLOND'))
+nxy <- as.table(mat)
+addmargins(nxy)
+h <- chisq.test(nxy,correct = FALSE)
+h
+cbind(h$observed,h$expected,h$residuals)
+#행합계 vs 열합계
+nx <- margin.table(nxy,margin=1)
+nx
+ny <- margin.table(nxy,margin=2)
+ny
+#기대빈도/파이슨 잔차/카이제곱 통계량 계산
+nhxy <- outer(nx,ny)/sum(nxy)
+nhxy
+chixy <- (nxy-nhxy)/sqrt(nhxy)
+chixy
+#chisquare
+sum(chixy^2)
+#기대비율/표준화 잔차/전체관성/카이제곱값: 비율기준
+pxy <- prop.table(nxy)
+pxy
+px <- margin.table(nxy,1)/sum(nxy)
+px
+py <- margin.table(nxy,2)/sum(nxy)
+py
+#pxy와 phxy간 표준화 잔차
+e <- diag(1/sqrt(px))%%(pxy-outer(px,py))%%diag(1/sqrt(py))
+sum(e^2)
+#카이제곱
+sum(nxy)*sum(e^2)
+#행프로파일,열프로파일
+py.x <- prop.table(nxy,margin=1)
+py.x
+px.y <- prop.table(nxy,margin=2)
+px.y
+
+#모자이크 그림
+mosaicplot(nxy,color=TRUE)
+
+#대응분석
+library(ca)
+mca <- ca(nxy)
+mca
+#카이제곱 통계량
+sum(mca$sv^2)*sum(nxy)
+mca$rowmass
+mca$colmass
+#행표준좌표
+mca$rowcoord
+#열표준좌표
+mca$colcoord
+#행 주축좌표
+mca$rowcoord%*%diag(mca$sv)
+#열 주축좌표
+mca$colcoord%*%diag(mca$sv)
+#행렬도
+plot(mca)
+
+##차원1은 전체의 89.4%를 설명하며, 차원2는 9.5%를 설명한다
+#점들이 가까이 있을 수록 그 관계가 긴밀하기 때문에, BROWN과 BLACK / RED,GREEN,HAZEL,BROWN /BLUE,BLOND 는 각각 서로 관계가 있다.
+
+```
+## 과제2 MDS
+```{r}
+ramyun <- read.csv('C:/Users/hyose/Desktop/ramyun2sas.csv',na.string='.',header=TRUE)
+ramyun2 <- ramyun[,7:16]
+ramyun.d <- scale(ramyun2,center = TRUE,scale = TRUE)
+rownames(ramyun.d) <- ramyun$pname
+ramyun.dd <- na.omit(ramyun.d)
+head(ramyun.dd)
+library(proxy)
+
+#거리행렬 시각화
+ramyun.dist <- dist(ramyun.dd,method='euclidean',diag = TRUE,upper = FALSE,by_rows=TRUE)
+round(ramyun.dist,digit=3)
+
+#다차원척도법
+ramyun.mds <- cmdscale(ramyun.dist ,k=2,eig = TRUE)
+ramyun.mds
+
+#다차원척도법 시각화
+x <- ramyun.mds$points[,1]
+y <- ramyun.mds$points[,2]
+plot(x,y,pch=8,col='red',xlim=c(-2.8,2.8),ylim=c(-1.1,1.2),xlab='Dimension 1',ylab='Dimension 2')
+abline(v=0,h=0,lty=2)
+text(x,y,pos=3,labels=ramyun$pname,col='blue')
+```
+
+
+## 과제3 군집분석
+```{r}
+######## kmeans군집분석
+ramyunn <- as.data.frame(read.csv('C:/Users/hyose/Desktop/ramyun2sas.csv',,na.string='.',header=TRUE))
+ramyunn.2 <- ramyunn[,7:16]
+ramyunn.3 <- na.omit(ramyunn.2)
+row.names(ramyunn.3) <- ramyunn.3$pname
+head(ramyunn.3)
+z <- scale(ramyunn.3)
+summary(z)
+
+library(NbClust)
+nbc <- NbClust(z,min.nc=2,max.nc=10,method='kmeans')
+
+#k별 추천횟수
+library(factoextra)
+fviz_nbclust(nbc)
+#측도별 최적 k
+nbc$Best.nc
+nbc$Best.partition
+#kmeans 적합/결과
+set.seed(1234)
+mk <- kmeans(z,c=3)
+mk
+#centroid
+mk$centers
+#군집레이블
+mk$cluster
+#군집크기
+mk$size
+#MANOVA 분산분석표
+mk$withinss
+#WSS:군집내 제곱합
+mk$tot.withinss
+#BSS:군집간 제곱합
+mk$totss
+#PCA로 2차원 군집 시각화
+fviz_cluster(mk,data=z,ellipse.type='euclid',star.plot=TRUE,repel=TRUE,palette='jama')
+
+####### hclust군집분석(WARD방법)
+nbc <- NbClust(z,min.nc=2,max.nc=10,method='ward.D2')
+#k별 추천횟수
+library(factoextra)
+fviz_nbclust(nbc)
+#측도별 최적 k
+nbc$Best.nc
+nbc$Best.partition
+
+#hclust 적합/결과
+dz <- dist(z)
+mhw <- hclust(dz,method = 'ward.D2')
+plot(mhw,hang=-1)
+rect.hclust(mhw,k=2)
+
+dz <- dist(z)
+mhw <- hclust(dz,method = 'ward.D2')
+plot(mhw,hang=-1)
+rect.hclust(mhw,k=2)
+khhw <- cutree(mhw,k=3)
+#fivz_dend(mhw1,rect=TRUE,palette='jama')
+
+#PCA로 2차원 군집 시각화
+fviz_cluster(list(data=z,cluster=khhw),ellipse.type='euclid', star.plot=TRUE, repel=TRUE, palette='jama')
+
+###### Mclust군집분석
+library(mclust)
+mm <- Mclust(z,G=1:5)
+summary(mm)
+#BIC가 큰 모형 선택
+plot(mm,what='BIC')
+#산점도 행렬 + 구성분포 + 레이블
+plot(mm,what='class')
+#통상적인 BIC와 다름
+fviz_mclust(mm,what='BIC',palette='jco')
+
+#Mclust 적합/결과
+#혼합분포 모형
+mm$modelName
+#군집개수
+mm$G
+#소속확률
+round(mm$z,4)
+#군집레이블
+mm$class
+table(mm$class)
+
+#PCA로 2차원 군집 시각화
+fviz_mclust(mm,what='class',palette='jco')
+fviz_cluster(mm,ellipse.type='euclid', star.plot=TRUE, repel=TRUE, palette='jama')
+
+
+
+
+```
+
